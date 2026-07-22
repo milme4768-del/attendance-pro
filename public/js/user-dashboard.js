@@ -5,8 +5,7 @@
   if (!user) return;
 
   // ─── DOM refs ──────────────────────────────────────────────────────
-  const userName = document.getElementById('user-name');
-  const userRole = document.getElementById('user-role');
+  const headerUser = document.getElementById('header-user');
   const statusIcon = document.getElementById('status-icon');
   const statusText = document.getElementById('status-text');
   const statusSub = document.getElementById('status-sub');
@@ -18,42 +17,52 @@
   const checkinMsg = document.getElementById('checkin-msg');
   const historyList = document.getElementById('history-list');
   const historyCount = document.getElementById('history-count');
-  const photoPreview = document.getElementById('photo-preview');
-  const photoPreviewImg = document.getElementById('photo-preview-img');
-  const confirmPhoto = document.getElementById('confirm-photo');
-  const retakePhoto = document.getElementById('retake-photo');
+  const photoPreviewWrapper = document.getElementById('photo-preview-wrapper');
+  const pageContainer = document.getElementById('page-container');
+  const ptrIndicator = document.getElementById('ptr-indicator');
 
+  let currentPosition = null;
   let pendingPhotoBlob = null;
-  let pendingAction = null; // 'checkin' or 'checkout'
+  let pendingAction = null;
+  let todayRecord = null;
+  let ptrState = 'idle'; // idle | pulling | refreshing
 
-  // ─── Sidebar / Navigation ─────────────────────────────────────────
-  document.getElementById('hamburger').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('sidebar-overlay').classList.toggle('open');
-  });
-  document.getElementById('sidebar-overlay').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebar-overlay').classList.remove('open');
-  });
+  // ─── User info ─────────────────────────────────────────────────────
+  headerUser.textContent = user.employeeId
+    ? `Staff · ${user.employeeId}`
+    : `Staff · ${user.name}`;
 
-  document.querySelectorAll('.nav-item[data-tab]').forEach((item) => {
-    item.addEventListener('click', () => {
-      document.querySelectorAll('.nav-item[data-tab]').forEach((n) => n.classList.remove('active'));
-      item.classList.add('active');
-      document.querySelectorAll('.tab-content').forEach((t) => t.classList.remove('active'));
-      document.getElementById(`tab-${item.dataset.tab}`).classList.add('active');
-      document.getElementById('sidebar').classList.remove('open');
-      document.getElementById('sidebar-overlay').classList.remove('open');
+  // ─── Bottom Tab Navigation ─────────────────────────────────────────
+  document.querySelectorAll('.nav-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
+      document.getElementById(`page-${tab.dataset.page}`).classList.add('active');
+      document.getElementById('page-container').scrollTop = 0;
     });
   });
 
-  document.getElementById('logout-btn').addEventListener('click', () => {
-    Api.logout();
-  });
+  document.getElementById('logout-btn').addEventListener('click', Api.logout);
+  document.getElementById('desktop-logout')?.addEventListener('click', Api.logout);
 
-  // ─── User info ─────────────────────────────────────────────────────
-  userName.textContent = user.name || 'Staff';
-  userRole.textContent = user.employeeId ? `Staff · ${user.employeeId}` : 'Staff';
+  // Desktop sidebar navigation
+  if (document.getElementById('desktop-user-name')) {
+    document.getElementById('desktop-user-name').textContent = user.name;
+    document.getElementById('desktop-user-role').textContent = user.employeeId ? `Staff · ${user.employeeId}` : 'Staff';
+  }
+  document.querySelectorAll('[data-desktop-page]').forEach((item) => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('[data-desktop-page]').forEach((n) => n.classList.remove('active'));
+      item.classList.add('active');
+      // Also update mobile nav
+      document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
+      document.querySelector(`.nav-tab[data-page="${item.dataset.desktopPage}"]`)?.classList.add('active');
+      document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
+      document.getElementById(`page-${item.dataset.desktopPage}`).classList.add('active');
+      pageContainer.scrollTop = 0;
+    });
+  });
 
   // ─── Live Clock ────────────────────────────────────────────────────
   function updateClock() {
@@ -67,40 +76,39 @@
   setInterval(updateClock, 1000);
 
   // ─── Geolocation ──────────────────────────────────────────────────
-  let currentPosition = null;
-
   function getLocation() {
     if (!navigator.geolocation) {
-      locationStatus.className = 'location-status unavailable';
-      locationStatus.innerHTML = '<span>⚠️</span> Geolocation not supported';
+      locationStatus.className = 'checkin-location no';
+      locationStatus.innerHTML = '<span>⚠️</span> GPS not supported';
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         currentPosition = pos;
-        locationStatus.className = 'location-status available';
-        locationStatus.innerHTML = `<span>📍</span> Location detected (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
+        locationStatus.className = 'checkin-location ok';
+        locationStatus.innerHTML = `<span>📍</span> ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
       },
       () => {
-        locationStatus.className = 'location-status unavailable';
-        locationStatus.innerHTML = '<span>⚠️</span> Location unavailable — enable GPS to check in/out';
+        locationStatus.className = 'checkin-location no';
+        locationStatus.innerHTML = '<span>⚠️</span> Enable GPS to check in';
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
   getLocation();
 
-  // ─── Load today's status ──────────────────────────────────────────
+  // ─── Load Today ────────────────────────────────────────────────────
   async function loadToday() {
     try {
       const data = await Api.request('/attendance/today');
-      const record = data.record;
-      updateUI(record);
+      todayRecord = data.record;
+      updateUI(todayRecord);
     } catch (err) {
-      statusText.textContent = 'Could not load status';
+      statusText.textContent = 'Error loading status';
       statusSub.textContent = err.message;
       checkinBtn.style.display = 'block';
       checkinBtn.textContent = '✅ Check In';
+      checkoutBtn.style.display = 'none';
     }
   }
 
@@ -108,7 +116,7 @@
     if (!record) {
       statusIcon.textContent = '⏳';
       statusText.textContent = 'Not Checked In';
-      statusSub.textContent = 'You haven\'t checked in today. Start your shift!';
+      statusSub.textContent = 'Start your shift!';
       checkinBtn.style.display = 'block';
       checkinBtn.textContent = '✅ Check In';
       checkoutBtn.style.display = 'none';
@@ -116,13 +124,13 @@
       statusIcon.textContent = '🟡';
       statusText.textContent = 'Checked In';
       const time = new Date(record.checkIn.time).toLocaleTimeString('en-US', { hour12: false });
-      statusSub.textContent = `Checked in at ${time}`;
+      statusSub.textContent = `Since ${time}`;
       checkinBtn.style.display = 'none';
       checkoutBtn.style.display = 'block';
       checkoutBtn.textContent = '🚪 Check Out';
     } else if (record.status === 'completed') {
       statusIcon.textContent = '✅';
-      statusText.textContent = 'Shift Completed';
+      statusText.textContent = 'Shift Complete';
       const ci = new Date(record.checkIn.time).toLocaleTimeString('en-US', { hour12: false });
       const co = new Date(record.checkOut.time).toLocaleTimeString('en-US', { hour12: false });
       statusSub.textContent = `${ci} → ${co}`;
@@ -131,7 +139,46 @@
     }
   }
 
-  // ─── Capture Photo Helper ─────────────────────────────────────────
+  // ─── Pull-to-Refresh ───────────────────────────────────────────────
+  let startY = 0;
+  let pulling = false;
+
+  pageContainer.addEventListener('touchstart', (e) => {
+    if (pageContainer.scrollTop === 0) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  pageContainer.addEventListener('touchmove', (e) => {
+    if (!pulling || ptrState === 'refreshing') return;
+    const diff = e.touches[0].clientY - startY;
+    if (diff > 0) {
+      ptrIndicator.textContent = diff > 60 ? '🔄 Release to refresh' : '↓ Pull to refresh';
+      ptrIndicator.style.opacity = Math.min(diff / 80, 1);
+      ptrIndicator.style.height = Math.min(diff * 0.5, 80) + 'px';
+      ptrIndicator.style.overflow = 'visible';
+      if (diff > 60) ptrState = 'pulling';
+    }
+  }, { passive: true });
+
+  pageContainer.addEventListener('touchend', async () => {
+    if (ptrState === 'pulling') {
+      ptrState = 'refreshing';
+      ptrIndicator.innerHTML = '<div class="ptr-spinner"></div><span>Refreshing...</span>';
+      ptrIndicator.style.opacity = 1;
+      ptrIndicator.style.height = '48px';
+      await Promise.all([loadToday(), loadHistory()]);
+      ptrState = 'idle';
+      ptrIndicator.innerHTML = '<div class="ptr-spinner"></div><span>Pull to refresh</span>';
+    }
+    ptrIndicator.style.height = '0';
+    ptrIndicator.style.overflow = 'hidden';
+    ptrIndicator.style.opacity = '0';
+    pulling = false;
+  }, { passive: true });
+
+  // ─── Camera & Photo Preview ────────────────────────────────────────
   async function capturePhoto() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -154,30 +201,52 @@
     pendingPhotoBlob = blob;
     pendingAction = action;
     const url = URL.createObjectURL(blob);
-    photoPreviewImg.src = url;
-    photoPreview.style.display = 'block';
+    photoPreviewWrapper.style.display = 'block';
+    photoPreviewWrapper.innerHTML = `
+      <div class="photo-preview-card">
+        <img src="${url}" alt="Preview" />
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-success btn-sm" id="confirm-photo" style="flex:1;">✅ Confirm</button>
+          <button class="btn btn-outline btn-sm" id="retake-photo" style="flex:1;">🔄 Retake</button>
+        </div>
+      </div>`;
     checkinBtn.style.display = 'none';
     checkoutBtn.style.display = 'none';
+
+    document.getElementById('confirm-photo').addEventListener('click', submitAttendance);
+    document.getElementById('retake-photo').addEventListener('click', async () => {
+      const blob = await capturePhoto();
+      if (blob) {
+        URL.revokeObjectURL(url);
+        showPhotoPreview(blob, action);
+      } else {
+        Api.toast('Camera access required', 'error');
+        hidePhotoPreview();
+      }
+    });
   }
 
   function hidePhotoPreview() {
-    if (photoPreviewImg.src) URL.revokeObjectURL(photoPreviewImg.src);
-    photoPreview.style.display = 'none';
-    photoPreviewImg.src = '';
+    if (photoPreviewWrapper.querySelector('img')) {
+      URL.revokeObjectURL(photoPreviewWrapper.querySelector('img').src);
+    }
+    photoPreviewWrapper.style.display = 'none';
+    photoPreviewWrapper.innerHTML = '';
     pendingPhotoBlob = null;
     pendingAction = null;
-    loadToday(); // restore buttons
+    updateUI(todayRecord);
   }
 
-  async function submitAttendance(action) {
+  async function submitAttendance() {
     if (!currentPosition) {
-      Api.toast('Please enable GPS/location to proceed', 'warning');
+      Api.toast('Enable GPS to proceed', 'warning');
       getLocation();
       return;
     }
 
+    const action = pendingAction;
     const endpoint = action === 'checkin' ? '/attendance/checkin' : '/attendance/checkout';
-    const successMsg = action === 'checkin' ? '✅ Checked in successfully!' : '✅ Checked out successfully! Shift complete!';
+    const successMsg = action === 'checkin' ? '✅ Checked in!' : '✅ Checked out!';
 
     const btn = action === 'checkin' ? checkinBtn : checkoutBtn;
     btn.disabled = true;
@@ -193,7 +262,7 @@
       await Api.request(endpoint, { method: 'POST', body: formData, isForm: true });
       Api.toast(successMsg, 'success');
       hidePhotoPreview();
-      await loadToday();
+      await Promise.all([loadToday(), loadHistory()]);
     } catch (err) {
       Api.toast(err.message, 'error');
       hidePhotoPreview();
@@ -202,97 +271,59 @@
     }
   }
 
-  // ─── Check In ─────────────────────────────────────────────────────
+  // ─── Check In / Out ────────────────────────────────────────────────
   checkinBtn.addEventListener('click', async () => {
-    if (!currentPosition) {
-      Api.toast('Please enable GPS/location to check in', 'warning');
-      getLocation();
-      return;
-    }
-
+    if (!currentPosition) { getLocation(); Api.toast('Enable GPS to check in', 'warning'); return; }
+    if (navigator.vibrate) navigator.vibrate(10);
     const blob = await capturePhoto();
-    if (!blob) {
-      Api.toast('Camera access is required for check-in', 'error');
-      return;
-    }
+    if (!blob) { Api.toast('Camera access required', 'error'); return; }
     showPhotoPreview(blob, 'checkin');
   });
 
-  // ─── Check Out ────────────────────────────────────────────────────
   checkoutBtn.addEventListener('click', async () => {
-    if (!currentPosition) {
-      Api.toast('Please enable GPS/location to check out', 'warning');
-      getLocation();
-      return;
-    }
-
+    if (!currentPosition) { getLocation(); Api.toast('Enable GPS to check out', 'warning'); return; }
+    if (navigator.vibrate) navigator.vibrate(10);
     const blob = await capturePhoto();
-    if (!blob) {
-      Api.toast('Camera access is required for check-out', 'error');
-      return;
-    }
+    if (!blob) { Api.toast('Camera access required', 'error'); return; }
     showPhotoPreview(blob, 'checkout');
-  });
-
-  // ─── Photo Preview Buttons ────────────────────────────────────────
-  confirmPhoto.addEventListener('click', () => {
-    if (pendingAction) submitAttendance(pendingAction);
-  });
-
-  retakePhoto.addEventListener('click', async () => {
-    const blob = await capturePhoto();
-    if (blob) {
-      URL.revokeObjectURL(photoPreviewImg.src);
-      showPhotoPreview(blob, pendingAction);
-    } else {
-      Api.toast('Camera access required', 'error');
-      hidePhotoPreview();
-    }
   });
 
   // ─── Load History ─────────────────────────────────────────────────
   async function loadHistory() {
     try {
       const data = await Api.request('/attendance/history');
-      const records = data.records || [];
-      renderHistory(records);
+      renderHistory(data.records || []);
     } catch (err) {
-      historyList.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><h3>Could not load history</h3><p>${err.message}</p></div>`;
+      historyList.innerHTML = `<div class="empty-state"><h3>Could not load history</h3><p>${err.message}</p></div>`;
     }
   }
 
   function renderHistory(records) {
     historyCount.textContent = records.length;
-
     if (records.length === 0) {
-      historyList.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><h3>No records yet</h3><p>Your attendance history will appear here after you check in.</p></div>`;
+      historyList.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><h3>No records yet</h3></div>`;
       return;
     }
-
     historyList.innerHTML = records.map((r) => {
       const date = new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric',
       });
       const ci = r.checkIn ? new Date(r.checkIn.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
       const co = r.checkOut ? new Date(r.checkOut.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
-
       let duration = '—';
       if (r.checkIn && r.checkOut) {
         const diff = new Date(r.checkOut.time) - new Date(r.checkIn.time);
-        const hrs = Math.floor(diff / 3600000);
-        const mins = Math.floor((diff % 3600000) / 60000);
-        duration = `${hrs}h ${mins}m`;
+        duration = `${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m`;
       }
-
-      const statusClass = r.status === 'completed' ? 'completed' : 'checked-in';
+      const cls = r.status === 'completed' ? 'done' : 'on';
       return `<div class="history-item">
         <div>
-          <div class="date">${date}</div>
-          <div class="time-range">${ci} → ${co}</div>
+          <div class="h-date">${date}</div>
+          <div class="h-time">${ci} → ${co}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div class="duration">${duration}</div>
-          <span class="status-dot ${statusClass}"></span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="h-dur">${duration}</div>
+          <span class="h-dot ${cls}"></span>
         </div>
       </div>`;
     }).join('');

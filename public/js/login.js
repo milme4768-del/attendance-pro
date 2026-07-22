@@ -93,7 +93,7 @@
         window.location.href = data.user.role === 'admin' ? '/admin-dashboard.html' : '/user-dashboard.html';
       }, 500);
     } catch (err) {
-      msg.innerHTML = `<div class="error-msg">${err.message}</div>`;
+      msg.innerHTML = `<div class="msg error">${err.message}</div>`;
       btn.disabled = false;
       btnText.textContent = 'Sign In';
       btnSpinner.style.display = 'none';

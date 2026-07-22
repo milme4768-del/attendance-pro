@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin · ShiftLog</title>
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="logo">
+        <div class="dot">⏱</div>
+        <strong>SHIFTLOG</strong>
+      </div>
+      <div class="user-badge">
+        <div class="name" id="admin-name">—</div>
+        <div class="role" id="admin-role">Admin</div>
+      </div>
+      <button class="nav-item active" data-tab="overview">
+        <span class="icon">📊</span> Overview
+      </button>
+      <button class="nav-item" data-tab="users">
+        <span class="icon">👥</span> Users
+      </button>
+      <button class="nav-item" data-tab="logs">
+        <span class="icon">📋</span> Attendance Logs
+      </button>
+      <button class="nav-item" data-tab="reports">
+        <span class="icon">📈</span> Reports
+      </button>
+      <div class="spacer"></div>
+      <button class="nav-item logout" id="logout-btn">
+        <span class="icon">🚪</span> Sign Out
+      </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <button class="hamburger" id="hamburger">☰</button>
+
+      <!-- Overview Tab -->
+      <div class="tab-content active" id="tab-overview">
+        <div class="page-header">
+          <div>
+            <h1>Admin Overview</h1>
+            <p>Monitor attendance at a glance</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="refresh-overview">🔄 Refresh</button>
+        </div>
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card accent-1">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value" id="stat-total">—</div>
+            <div class="stat-label">Total Users</div>
+          </div>
+          <div class="stat-card accent-2">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="stat-checked-in">—</div>
+            <div class="stat-label">Checked In Today</div>
+          </div>
+          <div class="stat-card accent-3">
+            <div class="stat-icon">🔄</div>
+            <div class="stat-value" id="stat-active">—</div>
+            <div class="stat-label">Active Today</div>
+          </div>
+          <div class="stat-card accent-4">
+            <div class="stat-icon">📅</div>
+            <div class="stat-value" id="stat-total-records">—</div>
+            <div class="stat-label">Total Records</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Tab -->
+      <div class="tab-content" id="tab-users">
+        <div class="page-header">
+          <div>
+            <h1>Manage Users</h1>
+            <p>Create, edit, and manage staff accounts</p>
+          </div>
+          <button class="btn btn-primary btn-sm" id="add-user-btn">➕ Add User</button>
+        </div>
+        <div class="card">
+          <div class="filter-bar">
+            <input type="text" id="user-search" placeholder="Search by name or email..." />
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Employee ID</th>
+                  <th>Department</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody"></tbody>
+            </table>
+          </div>
+          <div id="users-empty" class="empty-state" style="display:none;">
+            <div class="empty-icon">👥</div>
+            <h3>No users found</h3>
+            <p>Create your first staff account to get started.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attendance Logs Tab -->
+      <div class="tab-content" id="tab-logs">
+        <div class="page-header">
+          <div>
+            <h1>Attendance Logs</h1>
+            <p>Real-time attendance feed</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="refresh-logs">🔄 Refresh</button>
+        </div>
+        <div class="card">
+          <div class="filter-bar">
+            <input type="date" id="log-date" />
+            <select id="log-user-filter">
+              <option value="">All Users</option>
+            </select>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Staff</th>
+                  <th>Check In</th>
+                  <th>Check Out</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="logs-tbody"></tbody>
+            </table>
+          </div>
+          <div id="logs-empty" class="empty-state" style="display:none;">
+            <div class="empty-icon">📋</div>
+            <h3>No records found</h3>
+            <p>Attendance records will appear here once staff check in.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reports Tab -->
+      <div class="tab-content" id="tab-reports">
+        <div class="page-header">
+          <div>
+            <h1>Reports</h1>
+            <p>Download monthly attendance reports</p>
+          </div>
+        </div>
+        <div class="card">
+          <h2 style="margin-bottom:16px;">📊 Monthly Report</h2>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <div class="input-group" style="flex:1;min-width:150px;">
+              <label>Month</label>
+              <select id="report-month"></select>
+            </div>
+            <div class="input-group" style="flex:1;min-width:150px;">
+              <label>Year</label>
+              <select id="report-year"></select>
+            </div>
+            <button class="btn btn-primary" id="download-report">📥 Download CSV</button>
+          </div>
+          <div id="report-msg" style="margin-top:16px;"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add User Modal -->
+  <div class="modal-overlay" id="user-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Add New User</h2>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <form id="user-form">
+        <input type="hidden" id="edit-user-id" />
+        <div class="input-group">
+          <label for="form-name">Full Name</label>
+          <input type="text" id="form-name" required placeholder="John Doe" />
+        </div>
+        <div class="input-group">
+          <label for="form-email">Email</label>
+          <input type="email" id="form-email" required placeholder="john@company.com" />
+        </div>
+        <div class="input-group">
+          <label for="form-password">Password</label>
+          <input type="password" id="form-password" placeholder="Leave blank to keep current (when editing)" />
+        </div>
+        <div class="input-group">
+          <label for="form-employee-id">Employee ID</label>
+          <input type="text" id="form-employee-id" placeholder="EMP-001" />
+        </div>
+        <div class="input-group">
+          <label for="form-department">Department</label>
+          <input type="text" id="form-department" placeholder="Engineering" />
+        </div>
+        <div class="input-group">
+          <label for="form-role">Role</label>
+          <select id="form-role">
+            <option value="staff">Staff</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" id="form-submit">Create User</button>
+      </form>
+      <div id="form-msg"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/admin-dashboard.js"></script>
+</body>
+</html>

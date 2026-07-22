@@ -14,55 +14,44 @@
   const checkinBtn = document.getElementById('checkin-btn');
   const checkoutBtn = document.getElementById('checkout-btn');
   const locationStatus = document.getElementById('location-status');
-  const checkinMsg = document.getElementById('checkin-msg');
   const historyList = document.getElementById('history-list');
   const historyCount = document.getElementById('history-count');
-  const photoPreviewWrapper = document.getElementById('photo-preview-wrapper');
+
+  // Camera elements
+  const cameraArea = document.getElementById('camera-area');
+  const cameraCard = document.getElementById('camera-card');
+  const cameraPreview = document.getElementById('camera-preview');
+  const capturedPhoto = document.getElementById('captured-photo');
+  const captureBtn = document.getElementById('capture-btn');
+  const captureOverlay = document.getElementById('capture-overlay');
+  const captureActions = document.getElementById('capture-actions');
+  const confirmBtn = document.getElementById('confirm-photo');
+  const retakeBtn = document.getElementById('retake-photo');
+  const cancelBtn = document.getElementById('cancel-camera');
+  const cameraStatus = document.getElementById('camera-status');
+  const checkinMsg = document.getElementById('checkin-msg');
+
   const pageContainer = document.getElementById('page-container');
-  const ptrIndicator = document.getElementById('ptr-indicator');
 
   let currentPosition = null;
-  let pendingPhotoBlob = null;
-  let pendingAction = null;
   let todayRecord = null;
-  let ptrState = 'idle'; // idle | pulling | refreshing
+  let mediaStream = null;
+  let pendingAction = null; // 'checkin' | 'checkout'
+  let capturedBlob = null;
 
   // ─── User info ─────────────────────────────────────────────────────
   headerUser.textContent = user.employeeId
     ? `Staff · ${user.employeeId}`
     : `Staff · ${user.name}`;
 
-  // ─── Bottom Tab Navigation ─────────────────────────────────────────
-  document.querySelectorAll('.nav-tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-      document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
-      document.getElementById(`page-${tab.dataset.page}`).classList.add('active');
-      document.getElementById('page-container').scrollTop = 0;
-    });
-  });
-
-  document.getElementById('logout-btn').addEventListener('click', Api.logout);
-  document.getElementById('desktop-logout')?.addEventListener('click', Api.logout);
-
-  // Desktop sidebar navigation
+  // ─── Desktop sidebar ───────────────────────────────────────────────
   if (document.getElementById('desktop-user-name')) {
     document.getElementById('desktop-user-name').textContent = user.name;
-    document.getElementById('desktop-user-role').textContent = user.employeeId ? `Staff · ${user.employeeId}` : 'Staff';
+    document.getElementById('desktop-user-role').textContent = user.employeeId
+      ? `Staff · ${user.employeeId}` : 'Staff';
   }
-  document.querySelectorAll('[data-desktop-page]').forEach((item) => {
-    item.addEventListener('click', () => {
-      document.querySelectorAll('[data-desktop-page]').forEach((n) => n.classList.remove('active'));
-      item.classList.add('active');
-      // Also update mobile nav
-      document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
-      document.querySelector(`.nav-tab[data-page="${item.dataset.desktopPage}"]`)?.classList.add('active');
-      document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
-      document.getElementById(`page-${item.dataset.desktopPage}`).classList.add('active');
-      pageContainer.scrollTop = 0;
-    });
-  });
+  document.getElementById('logout-btn').addEventListener('click', Api.logout);
+  document.getElementById('desktop-logout')?.addEventListener('click', Api.logout);
 
   // ─── Live Clock ────────────────────────────────────────────────────
   function updateClock() {
@@ -97,7 +86,7 @@
   }
   getLocation();
 
-  // ─── Load Today ────────────────────────────────────────────────────
+  // ─── Load today's status ──────────────────────────────────────────
   async function loadToday() {
     try {
       const data = await Api.request('/attendance/today');
@@ -139,108 +128,124 @@
     }
   }
 
-  // ─── Pull-to-Refresh ───────────────────────────────────────────────
-  let startY = 0;
-  let pulling = false;
-
-  pageContainer.addEventListener('touchstart', (e) => {
-    if (pageContainer.scrollTop === 0) {
-      startY = e.touches[0].clientY;
-      pulling = true;
-    }
-  }, { passive: true });
-
-  pageContainer.addEventListener('touchmove', (e) => {
-    if (!pulling || ptrState === 'refreshing') return;
-    const diff = e.touches[0].clientY - startY;
-    if (diff > 0) {
-      ptrIndicator.textContent = diff > 60 ? '🔄 Release to refresh' : '↓ Pull to refresh';
-      ptrIndicator.style.opacity = Math.min(diff / 80, 1);
-      ptrIndicator.style.height = Math.min(diff * 0.5, 80) + 'px';
-      ptrIndicator.style.overflow = 'visible';
-      if (diff > 60) ptrState = 'pulling';
-    }
-  }, { passive: true });
-
-  pageContainer.addEventListener('touchend', async () => {
-    if (ptrState === 'pulling') {
-      ptrState = 'refreshing';
-      ptrIndicator.innerHTML = '<div class="ptr-spinner"></div><span>Refreshing...</span>';
-      ptrIndicator.style.opacity = 1;
-      ptrIndicator.style.height = '48px';
-      await Promise.all([loadToday(), loadHistory()]);
-      ptrState = 'idle';
-      ptrIndicator.innerHTML = '<div class="ptr-spinner"></div><span>Pull to refresh</span>';
-    }
-    ptrIndicator.style.height = '0';
-    ptrIndicator.style.overflow = 'hidden';
-    ptrIndicator.style.opacity = '0';
-    pulling = false;
-  }, { passive: true });
-
-  // ─── Camera & Photo Preview ────────────────────────────────────────
-  async function capturePhoto() {
+  // ─── Camera ────────────────────────────────────────────────────────
+  async function openCamera() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      await video.play();
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7));
-      stream.getTracks().forEach((t) => t.stop());
-      return blob;
-    } catch {
-      return null;
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      cameraPreview.srcObject = mediaStream;
+      cameraArea.style.display = 'block';
+      captureOverlay.style.display = 'flex';
+      capturedPhoto.style.display = 'none';
+      cameraPreview.style.display = 'block';
+      captureActions.style.display = 'none';
+      cameraStatus.innerHTML = '';
+      return true;
+    } catch (err) {
+      cameraStatus.innerHTML = `<div class="msg error">Camera access denied. Please allow camera permissions.</div>`;
+      return false;
     }
   }
 
-  function showPhotoPreview(blob, action) {
-    pendingPhotoBlob = blob;
-    pendingAction = action;
-    const url = URL.createObjectURL(blob);
-    photoPreviewWrapper.style.display = 'block';
-    photoPreviewWrapper.innerHTML = `
-      <div class="photo-preview-card">
-        <img src="${url}" alt="Preview" />
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-success btn-sm" id="confirm-photo" style="flex:1;">✅ Confirm</button>
-          <button class="btn btn-outline btn-sm" id="retake-photo" style="flex:1;">🔄 Retake</button>
-        </div>
-      </div>`;
+  function closeCamera() {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((t) => t.stop());
+      mediaStream = null;
+    }
+    cameraArea.style.display = 'none';
+    cameraPreview.srcObject = null;
+    capturedBlob = null;
+    pendingAction = null;
+  }
+
+  function capturePhoto() {
+    const canvas = document.createElement('canvas');
+    canvas.width = cameraPreview.videoWidth || 480;
+    canvas.height = cameraPreview.videoHeight || 640;
+    const ctx = canvas.getContext('2d');
+
+    // Mirror the image for front camera (selfie mode)
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      capturedBlob = blob;
+      const url = URL.createObjectURL(blob);
+
+      // Show captured photo
+      capturedPhoto.src = url;
+      capturedPhoto.style.display = 'block';
+      cameraPreview.style.display = 'none';
+      captureOverlay.style.display = 'none';
+      captureActions.style.display = 'flex';
+
+      // Stop camera stream
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((t) => t.stop());
+        mediaStream = null;
+      }
+    }, 'image/jpeg', 0.8);
+  }
+
+  // ─── Check In / Out ────────────────────────────────────────────────
+  checkinBtn.addEventListener('click', async () => {
+    if (!currentPosition) { getLocation(); Api.toast('Enable GPS to check in', 'warning'); return; }
+    if (navigator.vibrate) navigator.vibrate(10);
+    pendingAction = 'checkin';
     checkinBtn.style.display = 'none';
     checkoutBtn.style.display = 'none';
-
-    document.getElementById('confirm-photo').addEventListener('click', submitAttendance);
-    document.getElementById('retake-photo').addEventListener('click', async () => {
-      const blob = await capturePhoto();
-      if (blob) {
-        URL.revokeObjectURL(url);
-        showPhotoPreview(blob, action);
-      } else {
-        Api.toast('Camera access required', 'error');
-        hidePhotoPreview();
-      }
-    });
-  }
-
-  function hidePhotoPreview() {
-    if (photoPreviewWrapper.querySelector('img')) {
-      URL.revokeObjectURL(photoPreviewWrapper.querySelector('img').src);
+    if (!(await openCamera())) {
+      pendingAction = null;
+      updateUI(todayRecord);
     }
-    photoPreviewWrapper.style.display = 'none';
-    photoPreviewWrapper.innerHTML = '';
-    pendingPhotoBlob = null;
-    pendingAction = null;
-    updateUI(todayRecord);
-  }
+  });
 
+  checkoutBtn.addEventListener('click', async () => {
+    if (!currentPosition) { getLocation(); Api.toast('Enable GPS to check out', 'warning'); return; }
+    if (navigator.vibrate) navigator.vibrate(10);
+    pendingAction = 'checkout';
+    checkinBtn.style.display = 'none';
+    checkoutBtn.style.display = 'none';
+    if (!(await openCamera())) {
+      pendingAction = null;
+      updateUI(todayRecord);
+    }
+  });
+
+  // ─── Capture button ────────────────────────────────────────────────
+  captureBtn.addEventListener('click', () => {
+    if (navigator.vibrate) navigator.vibrate(15);
+    capturePhoto();
+  });
+
+  // ─── Confirm / Retake / Cancel ────────────────────────────────────
+  confirmBtn.addEventListener('click', submitAttendance);
+  retakeBtn.addEventListener('click', async () => {
+    capturedBlob = null;
+    capturedPhoto.src = '';
+    capturedPhoto.style.display = 'none';
+    captureActions.style.display = 'none';
+    if (!(await openCamera())) {
+      closeCamera();
+      updateUI(todayRecord);
+    }
+  });
+  cancelBtn.addEventListener('click', () => {
+    closeCamera();
+    updateUI(todayRecord);
+  });
+
+  // ─── Submit Attendance ─────────────────────────────────────────────
   async function submitAttendance() {
     if (!currentPosition) {
       Api.toast('Enable GPS to proceed', 'warning');
       getLocation();
+      return;
+    }
+    if (!capturedBlob) {
+      Api.toast('Please capture a photo first', 'warning');
       return;
     }
 
@@ -248,45 +253,30 @@
     const endpoint = action === 'checkin' ? '/attendance/checkin' : '/attendance/checkout';
     const successMsg = action === 'checkin' ? '✅ Checked in!' : '✅ Checked out!';
 
-    const btn = action === 'checkin' ? checkinBtn : checkoutBtn;
-    btn.disabled = true;
-    btn.textContent = '⏳ Processing...';
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '⏳ Submitting...';
 
     try {
       const formData = new FormData();
-      formData.append('image', pendingPhotoBlob, `${action}.jpg`);
+      formData.append('image', capturedBlob, `${action}.jpg`);
       formData.append('latitude', currentPosition.coords.latitude);
       formData.append('longitude', currentPosition.coords.longitude);
       formData.append('accuracy', currentPosition.coords.accuracy || 0);
 
       await Api.request(endpoint, { method: 'POST', body: formData, isForm: true });
       Api.toast(successMsg, 'success');
-      hidePhotoPreview();
-      await Promise.all([loadToday(), loadHistory()]);
+      closeCamera();
+      await loadToday();
+      await loadHistory();
     } catch (err) {
       Api.toast(err.message, 'error');
-      hidePhotoPreview();
+      closeCamera();
+      updateUI(todayRecord);
     } finally {
-      btn.disabled = false;
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '✅ Confirm';
     }
   }
-
-  // ─── Check In / Out ────────────────────────────────────────────────
-  checkinBtn.addEventListener('click', async () => {
-    if (!currentPosition) { getLocation(); Api.toast('Enable GPS to check in', 'warning'); return; }
-    if (navigator.vibrate) navigator.vibrate(10);
-    const blob = await capturePhoto();
-    if (!blob) { Api.toast('Camera access required', 'error'); return; }
-    showPhotoPreview(blob, 'checkin');
-  });
-
-  checkoutBtn.addEventListener('click', async () => {
-    if (!currentPosition) { getLocation(); Api.toast('Enable GPS to check out', 'warning'); return; }
-    if (navigator.vibrate) navigator.vibrate(10);
-    const blob = await capturePhoto();
-    if (!blob) { Api.toast('Camera access required', 'error'); return; }
-    showPhotoPreview(blob, 'checkout');
-  });
 
   // ─── Load History ─────────────────────────────────────────────────
   async function loadHistory() {
@@ -304,29 +294,31 @@
       historyList.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><h3>No records yet</h3></div>`;
       return;
     }
-    historyList.innerHTML = records.map((r) => {
+    let html = '';
+    records.forEach((r) => {
       const date = new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric',
       });
       const ci = r.checkIn ? new Date(r.checkIn.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
       const co = r.checkOut ? new Date(r.checkOut.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
-      let duration = '—';
+      let dur = '—';
       if (r.checkIn && r.checkOut) {
-        const diff = new Date(r.checkOut.time) - new Date(r.checkIn.time);
-        duration = `${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m`;
+        const d = new Date(r.checkOut.time) - new Date(r.checkIn.time);
+        dur = `${Math.floor(d / 3600000)}h ${Math.floor((d % 3600000) / 60000)}m`;
       }
       const cls = r.status === 'completed' ? 'done' : 'on';
-      return `<div class="history-item">
+      html += `<div class="history-item">
         <div>
           <div class="h-date">${date}</div>
           <div class="h-time">${ci} → ${co}</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <div class="h-dur">${duration}</div>
+          <div class="h-dur">${dur}</div>
           <span class="h-dot ${cls}"></span>
         </div>
       </div>`;
-    }).join('');
+    });
+    historyList.innerHTML = html;
   }
 
   // ─── Init ──────────────────────────────────────────────────────────

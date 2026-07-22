@@ -11,7 +11,6 @@ function signToken(user) {
   });
 }
 
-// POST /api/auth/login  -- used by both admin and staff, no public registration
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -46,7 +45,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/me -- returns the logged-in user's profile
 router.get('/me', protect, async (req, res) => {
   res.json({ user: req.user });
 });

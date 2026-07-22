@@ -13,25 +13,18 @@
 </head>
 <body>
   <div id="toast-container" class="toast-container"></div>
-
   <div class="app-shell">
     <div class="status-bar"></div>
-
     <header class="app-header">
       <div class="header-left">
         <div class="header-logo">⏱</div>
-        <div>
-          <div class="header-title">ShiftLog</div>
-          <div class="header-sub" id="header-user">Staff</div>
-        </div>
+        <div><div class="header-title">ShiftLog</div><div class="header-sub" id="header-user">Staff</div></div>
       </div>
       <div class="header-right">
         <button class="header-btn" id="logout-btn" title="Sign out">🚪</button>
       </div>
     </header>
-
     <div class="page-container" id="page-container">
-      <!-- Dashboard Page -->
       <div class="page active" id="page-dashboard">
         <div class="checkin-card">
           <span class="checkin-icon" id="status-icon">⏳</span>
@@ -44,15 +37,12 @@
           <button class="btn btn-lg btn-danger" id="checkout-btn" style="display:none;">🚪 Check Out</button>
         </div>
 
-        <!-- Camera Capture Area (shown when check-in/out clicked) -->
         <div id="camera-area" style="display:none;">
-          <div class="camera-card" id="camera-card">
+          <div class="camera-card">
             <video id="camera-preview" autoplay playsinline></video>
             <img id="captured-photo" style="display:none;" />
             <div class="camera-overlay" id="capture-overlay">
-              <button class="camera-btn" id="capture-btn">
-                <div class="inner"></div>
-              </button>
+              <button class="camera-btn" id="capture-btn"><div class="inner"></div></button>
             </div>
           </div>
           <div class="capture-actions" id="capture-actions" style="display:none;">
@@ -64,50 +54,28 @@
         </div>
 
         <div id="checkin-msg"></div>
-
         <div class="section-title" style="margin-top:8px;">History</div>
         <div class="card">
-          <div class="card-header">
-            <h2>Recent Records</h2>
-            <span class="card-badge" id="history-count">0</span>
-          </div>
-          <div id="history-list">
-            <div class="loading"><div class="spinner"></div><span>Loading...</span></div>
-          </div>
+          <div class="card-header"><h2>Recent Records</h2><span class="card-badge" id="history-count">0</span></div>
+          <div id="history-list"><div class="loading"><div class="spinner"></div><span>Loading...</span></div></div>
         </div>
       </div>
     </div>
-
-    <!-- Bottom Nav -->
     <nav class="bottom-nav">
-      <button class="nav-tab active" data-page="dashboard">
-        <span class="nav-icon">🏠</span>
-        <span>Dashboard</span>
-      </button>
+      <button class="nav-tab active"><span class="nav-icon">🏠</span><span>Dashboard</span></button>
     </nav>
-
-    <!-- Desktop Sidebar -->
     <aside class="desktop-sidebar">
-      <div class="sb-logo">
-        <div class="sb-icon">⏱</div>
-        <strong>SHIFTLOG</strong>
-      </div>
-      <div class="sb-user">
-        <div class="sb-name" id="desktop-user-name">—</div>
-        <div class="sb-role" id="desktop-user-role">Staff</div>
-      </div>
-      <button class="sb-nav active" data-desktop-page="dashboard"><span class="sb-nav-icon">🏠</span> Dashboard</button>
+      <div class="sb-logo"><div class="sb-icon">⏱</div><strong>SHIFTLOG</strong></div>
+      <div class="sb-user"><div class="sb-name" id="desktop-user-name">—</div><div class="sb-role" id="desktop-user-role">Staff</div></div>
+      <button class="sb-nav active"><span class="sb-nav-icon">🏠</span> Dashboard</button>
       <div class="sb-spacer"></div>
       <button class="sb-nav sb-logout" id="desktop-logout"><span class="sb-nav-icon">🚪</span> Sign Out</button>
     </aside>
   </div>
-
   <script src="/js/api.js"></script>
   <script src="/js/user-dashboard.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
-    }
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }
   </script>
 </body>
 </html>

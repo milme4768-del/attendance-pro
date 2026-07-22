@@ -4,7 +4,6 @@
   const user = Api.requireAuth('staff');
   if (!user) return;
 
-  // ─── DOM refs ──────────────────────────────────────────────────────
   const headerUser = document.getElementById('header-user');
   const statusIcon = document.getElementById('status-icon');
   const statusText = document.getElementById('status-text');
@@ -16,10 +15,7 @@
   const locationStatus = document.getElementById('location-status');
   const historyList = document.getElementById('history-list');
   const historyCount = document.getElementById('history-count');
-
-  // Camera elements
   const cameraArea = document.getElementById('camera-area');
-  const cameraCard = document.getElementById('camera-card');
   const cameraPreview = document.getElementById('camera-preview');
   const capturedPhoto = document.getElementById('captured-photo');
   const captureBtn = document.getElementById('capture-btn');
@@ -29,42 +25,31 @@
   const retakeBtn = document.getElementById('retake-photo');
   const cancelBtn = document.getElementById('cancel-camera');
   const cameraStatus = document.getElementById('camera-status');
-  const checkinMsg = document.getElementById('checkin-msg');
-
   const pageContainer = document.getElementById('page-container');
 
   let currentPosition = null;
   let todayRecord = null;
   let mediaStream = null;
-  let pendingAction = null; // 'checkin' | 'checkout'
+  let pendingAction = null;
   let capturedBlob = null;
 
-  // ─── User info ─────────────────────────────────────────────────────
-  headerUser.textContent = user.employeeId
-    ? `Staff · ${user.employeeId}`
-    : `Staff · ${user.name}`;
+  headerUser.textContent = user.employeeId ? `Staff · ${user.employeeId}` : `Staff · ${user.name}`;
 
-  // ─── Desktop sidebar ───────────────────────────────────────────────
   if (document.getElementById('desktop-user-name')) {
     document.getElementById('desktop-user-name').textContent = user.name;
-    document.getElementById('desktop-user-role').textContent = user.employeeId
-      ? `Staff · ${user.employeeId}` : 'Staff';
+    document.getElementById('desktop-user-role').textContent = user.employeeId ? `Staff · ${user.employeeId}` : 'Staff';
   }
   document.getElementById('logout-btn').addEventListener('click', Api.logout);
   document.getElementById('desktop-logout')?.addEventListener('click', Api.logout);
 
-  // ─── Live Clock ────────────────────────────────────────────────────
   function updateClock() {
     const now = new Date();
     liveClock.textContent = now.toLocaleTimeString('en-US', { hour12: false });
-    liveDate.textContent = now.toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    });
+    liveDate.textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
   updateClock();
   setInterval(updateClock, 1000);
 
-  // ─── Geolocation ──────────────────────────────────────────────────
   function getLocation() {
     if (!navigator.geolocation) {
       locationStatus.className = 'checkin-location no';
@@ -86,7 +71,6 @@
   }
   getLocation();
 
-  // ─── Load today's status ──────────────────────────────────────────
   async function loadToday() {
     try {
       const data = await Api.request('/attendance/today');
@@ -112,12 +96,11 @@
     } else if (record.status === 'checked-in') {
       statusIcon.textContent = '🟡';
       statusText.textContent = 'Checked In';
-      const time = new Date(record.checkIn.time).toLocaleTimeString('en-US', { hour12: false });
-      statusSub.textContent = `Since ${time}`;
+      statusSub.textContent = `Since ${new Date(record.checkIn.time).toLocaleTimeString('en-US', { hour12: false })}`;
       checkinBtn.style.display = 'none';
       checkoutBtn.style.display = 'block';
       checkoutBtn.textContent = '🚪 Check Out';
-    } else if (record.status === 'completed') {
+    } else {
       statusIcon.textContent = '✅';
       statusText.textContent = 'Shift Complete';
       const ci = new Date(record.checkIn.time).toLocaleTimeString('en-US', { hour12: false });
@@ -128,7 +111,6 @@
     }
   }
 
-  // ─── Camera ────────────────────────────────────────────────────────
   async function openCamera() {
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -149,10 +131,7 @@
   }
 
   function closeCamera() {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((t) => t.stop());
-      mediaStream = null;
-    }
+    if (mediaStream) { mediaStream.getTracks().forEach((t) => t.stop()); mediaStream = null; }
     cameraArea.style.display = 'none';
     cameraPreview.srcObject = null;
     capturedBlob = null;
@@ -164,42 +143,27 @@
     canvas.width = cameraPreview.videoWidth || 480;
     canvas.height = cameraPreview.videoHeight || 640;
     const ctx = canvas.getContext('2d');
-
-    // Mirror the image for front camera (selfie mode)
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
-
     canvas.toBlob((blob) => {
       capturedBlob = blob;
-      const url = URL.createObjectURL(blob);
-
-      // Show captured photo
-      capturedPhoto.src = url;
+      capturedPhoto.src = URL.createObjectURL(blob);
       capturedPhoto.style.display = 'block';
       cameraPreview.style.display = 'none';
       captureOverlay.style.display = 'none';
       captureActions.style.display = 'flex';
-
-      // Stop camera stream
-      if (mediaStream) {
-        mediaStream.getTracks().forEach((t) => t.stop());
-        mediaStream = null;
-      }
+      if (mediaStream) { mediaStream.getTracks().forEach((t) => t.stop()); mediaStream = null; }
     }, 'image/jpeg', 0.8);
   }
 
-  // ─── Check In / Out ────────────────────────────────────────────────
   checkinBtn.addEventListener('click', async () => {
     if (!currentPosition) { getLocation(); Api.toast('Enable GPS to check in', 'warning'); return; }
     if (navigator.vibrate) navigator.vibrate(10);
     pendingAction = 'checkin';
     checkinBtn.style.display = 'none';
     checkoutBtn.style.display = 'none';
-    if (!(await openCamera())) {
-      pendingAction = null;
-      updateUI(todayRecord);
-    }
+    if (!(await openCamera())) { pendingAction = null; updateUI(todayRecord); }
   });
 
   checkoutBtn.addEventListener('click', async () => {
@@ -208,51 +172,26 @@
     pendingAction = 'checkout';
     checkinBtn.style.display = 'none';
     checkoutBtn.style.display = 'none';
-    if (!(await openCamera())) {
-      pendingAction = null;
-      updateUI(todayRecord);
-    }
+    if (!(await openCamera())) { pendingAction = null; updateUI(todayRecord); }
   });
 
-  // ─── Capture button ────────────────────────────────────────────────
-  captureBtn.addEventListener('click', () => {
-    if (navigator.vibrate) navigator.vibrate(15);
-    capturePhoto();
-  });
-
-  // ─── Confirm / Retake / Cancel ────────────────────────────────────
+  captureBtn.addEventListener('click', () => { if (navigator.vibrate) navigator.vibrate(15); capturePhoto(); });
   confirmBtn.addEventListener('click', submitAttendance);
+
   retakeBtn.addEventListener('click', async () => {
-    capturedBlob = null;
-    capturedPhoto.src = '';
-    capturedPhoto.style.display = 'none';
+    capturedBlob = null; capturedPhoto.src = ''; capturedPhoto.style.display = 'none';
     captureActions.style.display = 'none';
-    if (!(await openCamera())) {
-      closeCamera();
-      updateUI(todayRecord);
-    }
-  });
-  cancelBtn.addEventListener('click', () => {
-    closeCamera();
-    updateUI(todayRecord);
+    if (!(await openCamera())) { closeCamera(); updateUI(todayRecord); }
   });
 
-  // ─── Submit Attendance ─────────────────────────────────────────────
+  cancelBtn.addEventListener('click', () => { closeCamera(); updateUI(todayRecord); });
+
   async function submitAttendance() {
-    if (!currentPosition) {
-      Api.toast('Enable GPS to proceed', 'warning');
-      getLocation();
-      return;
-    }
-    if (!capturedBlob) {
-      Api.toast('Please capture a photo first', 'warning');
-      return;
-    }
+    if (!currentPosition) { Api.toast('Enable GPS to proceed', 'warning'); getLocation(); return; }
+    if (!capturedBlob) { Api.toast('Please capture a photo first', 'warning'); return; }
 
     const action = pendingAction;
     const endpoint = action === 'checkin' ? '/attendance/checkin' : '/attendance/checkout';
-    const successMsg = action === 'checkin' ? '✅ Checked in!' : '✅ Checked out!';
-
     confirmBtn.disabled = true;
     confirmBtn.textContent = '⏳ Submitting...';
 
@@ -264,7 +203,7 @@
       formData.append('accuracy', currentPosition.coords.accuracy || 0);
 
       await Api.request(endpoint, { method: 'POST', body: formData, isForm: true });
-      Api.toast(successMsg, 'success');
+      Api.toast(action === 'checkin' ? '✅ Checked in!' : '✅ Checked out!', 'success');
       closeCamera();
       await loadToday();
       await loadHistory();
@@ -278,50 +217,32 @@
     }
   }
 
-  // ─── Load History ─────────────────────────────────────────────────
   async function loadHistory() {
     try {
       const data = await Api.request('/attendance/history');
-      renderHistory(data.records || []);
-    } catch (err) {
-      historyList.innerHTML = `<div class="empty-state"><h3>Could not load history</h3><p>${err.message}</p></div>`;
-    }
-  }
-
-  function renderHistory(records) {
-    historyCount.textContent = records.length;
-    if (records.length === 0) {
-      historyList.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><h3>No records yet</h3></div>`;
-      return;
-    }
-    let html = '';
-    records.forEach((r) => {
-      const date = new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'short', month: 'short', day: 'numeric',
-      });
-      const ci = r.checkIn ? new Date(r.checkIn.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
-      const co = r.checkOut ? new Date(r.checkOut.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
-      let dur = '—';
-      if (r.checkIn && r.checkOut) {
-        const d = new Date(r.checkOut.time) - new Date(r.checkIn.time);
-        dur = `${Math.floor(d / 3600000)}h ${Math.floor((d % 3600000) / 60000)}m`;
+      const records = data.records || [];
+      historyCount.textContent = records.length;
+      if (records.length === 0) {
+        historyList.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><h3>No records yet</h3></div>`;
+        return;
       }
-      const cls = r.status === 'completed' ? 'done' : 'on';
-      html += `<div class="history-item">
-        <div>
-          <div class="h-date">${date}</div>
-          <div class="h-time">${ci} → ${co}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="h-dur">${dur}</div>
-          <span class="h-dot ${cls}"></span>
-        </div>
-      </div>`;
-    });
-    historyList.innerHTML = html;
+      historyList.innerHTML = records.map((r) => {
+        const date = new Date(r.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const ci = r.checkIn ? new Date(r.checkIn.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
+        const co = r.checkOut ? new Date(r.checkOut.time).toLocaleTimeString('en-US', { hour12: false }) : '—';
+        let dur = '—';
+        if (r.checkIn && r.checkOut) {
+          const d = new Date(r.checkOut.time) - new Date(r.checkIn.time);
+          dur = `${Math.floor(d / 3600000)}h ${Math.floor((d % 3600000) / 60000)}m`;
+        }
+        const cls = r.status === 'completed' ? 'done' : 'on';
+        return `<div class="history-item"><div><div class="h-date">${date}</div><div class="h-time">${ci} → ${co}</div></div><div style="display:flex;align-items:center;gap:8px;"><div class="h-dur">${dur}</div><span class="h-dot ${cls}"></span></div></div>`;
+      }).join('');
+    } catch (err) {
+      historyList.innerHTML = `<div class="empty-state"><h3>Could not load history</h3></div>`;
+    }
   }
 
-  // ─── Init ──────────────────────────────────────────────────────────
   loadToday();
   loadHistory();
 })();

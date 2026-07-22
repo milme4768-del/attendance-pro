@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// verifies the bearer token and attaches req.user
 async function protect(req, res, next) {
   try {
     const header = req.headers.authorization || '';
@@ -25,7 +24,6 @@ async function protect(req, res, next) {
   }
 }
 
-// only allows requests from users with role === 'admin'
 function adminOnly(req, res, next) {
   if (req.user && req.user.role === 'admin') {
     return next();

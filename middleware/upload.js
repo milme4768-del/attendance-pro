@@ -6,7 +6,6 @@ const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // one folder per user keeps things tidy: /uploads/<userId>/
     const userFolder = path.join(UPLOAD_ROOT, String(req.user.id));
     fs.mkdirSync(userFolder, { recursive: true });
     cb(null, userFolder);
@@ -29,7 +28,7 @@ function fileFilter(req, file, cb) {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max per photo
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 module.exports = upload;

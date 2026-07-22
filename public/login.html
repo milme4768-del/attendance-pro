@@ -20,7 +20,6 @@
       </div>
       <h1>Welcome back</h1>
       <p class="login-sub">Sign in to your account</p>
-
       <form id="login-form">
         <div class="input-group">
           <label for="email">Email</label>
@@ -38,13 +37,10 @@
       <div id="msg"></div>
     </div>
   </div>
-
   <script src="/js/api.js"></script>
   <script src="/js/login.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
-    }
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }
   </script>
 </body>
 </html>

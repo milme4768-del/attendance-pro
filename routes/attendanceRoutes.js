@@ -7,10 +7,9 @@ const upload = require('../middleware/upload');
 const router = express.Router();
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return new Date().toISOString().slice(0, 10);
 }
 
-// GET /api/attendance/today -- current user's status for today
 router.get('/today', protect, async (req, res) => {
   try {
     const record = await Attendance.findOne({ user: req.user.id, date: todayStr() });
@@ -20,7 +19,6 @@ router.get('/today', protect, async (req, res) => {
   }
 });
 
-// GET /api/attendance/history -- current user's own past records
 router.get('/history', protect, async (req, res) => {
   try {
     const records = await Attendance.find({ user: req.user.id }).sort({ date: -1 }).limit(90);
@@ -30,7 +28,6 @@ router.get('/history', protect, async (req, res) => {
   }
 });
 
-// POST /api/attendance/checkin  (multipart/form-data: image, latitude, longitude, accuracy)
 router.post('/checkin', protect, upload.single('image'), async (req, res) => {
   try {
     const { latitude, longitude, accuracy } = req.body;
@@ -67,7 +64,6 @@ router.post('/checkin', protect, upload.single('image'), async (req, res) => {
   }
 });
 
-// POST /api/attendance/checkout (multipart/form-data: image, latitude, longitude, accuracy)
 router.post('/checkout', protect, upload.single('image'), async (req, res) => {
   try {
     const { latitude, longitude, accuracy } = req.body;

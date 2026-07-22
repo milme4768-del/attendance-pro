@@ -6,10 +6,8 @@ const { buildMonthlyReportCSV } = require('../utils/generateReport');
 
 const router = express.Router();
 
-// every route below requires a logged-in admin
 router.use(protect, adminOnly);
 
-// POST /api/admin/users -- admin creates a staff login
 router.post('/users', async (req, res) => {
   try {
     const { name, email, password, employeeId, department, role } = req.body;
@@ -37,7 +35,6 @@ router.post('/users', async (req, res) => {
   }
 });
 
-// GET /api/admin/users -- list all staff/admin accounts
 router.get('/users', async (req, res) => {
   try {
     const users = await User.find().sort({ createdAt: -1 });
@@ -47,7 +44,6 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// PATCH /api/admin/users/:id -- enable/disable a login or edit details
 router.patch('/users/:id', async (req, res) => {
   try {
     const { name, employeeId, department, isActive, password } = req.body;
@@ -58,7 +54,7 @@ router.patch('/users/:id', async (req, res) => {
     if (employeeId !== undefined) user.employeeId = employeeId;
     if (department !== undefined) user.department = department;
     if (isActive !== undefined) user.isActive = isActive;
-    if (password) user.password = password; // will be re-hashed by pre-save hook
+    if (password) user.password = password;
 
     await user.save();
     res.json({ message: 'User updated', user });
@@ -67,7 +63,6 @@ router.patch('/users/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/users/:id
 router.delete('/users/:id', async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
@@ -77,8 +72,6 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
-// GET /api/admin/logs -- real-time attendance feed, newest first
-// optional query params: date=YYYY-MM-DD, userId=<id>
 router.get('/logs', async (req, res) => {
   try {
     const filter = {};
@@ -96,17 +89,16 @@ router.get('/logs', async (req, res) => {
   }
 });
 
-// GET /api/admin/reports/monthly?month=7&year=2026 -- downloadable CSV
 router.get('/reports/monthly', async (req, res) => {
   try {
-    const month = parseInt(req.query.month, 10); // 1-12
+    const month = parseInt(req.query.month, 10);
     const year = parseInt(req.query.year, 10);
     if (!month || !year) {
       return res.status(400).json({ message: 'month and year query params are required' });
     }
 
     const mm = String(month).padStart(2, '0');
-    const prefix = `${year}-${mm}`; // matches date field format YYYY-MM-DD
+    const prefix = `${year}-${mm}`;
 
     const records = await Attendance.find({ date: { $regex: `^${prefix}` } })
       .populate('user', 'name email employeeId')

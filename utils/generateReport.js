@@ -1,6 +1,3 @@
-// Builds a simple CSV (opens fine in Excel/Google Sheets) for a set of attendance records.
-// Kept dependency-free on purpose so the project stays lightweight.
-
 function csvEscape(value) {
   if (value === null || value === undefined) return '';
   const str = String(value);

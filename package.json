@@ -1,5 +1,5 @@
 {
-  "name": "attendance-tracker",
+  "name": "attendance",
   "version": "1.0.0",
   "description": "Attendance tracker with image upload + geo-tagging for remote staff monitoring",
   "main": "server.js",
